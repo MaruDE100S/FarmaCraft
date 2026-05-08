@@ -1,0 +1,20 @@
+# Temporary build files
+build/
+*.o
+*.obj
+
+# IDE files
+.vscode/
+.vs/
+.idea/
+bin/
+obj/
+
+# Logs
+*.log
+
+# Keep the executable as requested (though usually releases are uploaded separately)
+# !FarmaCraft.exe
+
+# Ensure media folders are included
+# (Git includes them by default if they have files)
