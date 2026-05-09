@@ -1,4 +1,5 @@
 #include <raylib.h>
+#include <iostream>
 #include <vector>
 #include <string>
 #include <fstream>
@@ -19,15 +20,28 @@ int main () {
         Texture2D bananaTree = LoadTexture("includes/tetures/bananatree.png");
         Texture2D orangeTree = LoadTexture("includes/tetures/orangetree.png");
 
+        Texture2D win = LoadTexture("includes/tetures/win_button.png");
+        Texture2D banana_upgrade_texture = LoadTexture("includes/tetures/banana_button.png");
+        Texture2D orange_upgrade_texture = LoadTexture("includes/tetures/orange_button.png");
+
         Vector2 mousePoint = { 0.0f, 0.0f };
         int apples = 0;
         int bananas = 0;
         int oranges = 0;
         int clicks = 0;
-
+        
         bool banana_upgrade = false;
         bool orange_upgrade = false;
-      
+
+        std::fstream open_file("saves/save.txt");
+        open_file >> apples;
+        open_file >> bananas;
+        open_file >> oranges;
+        open_file >> clicks;
+        open_file >> banana_upgrade;
+        open_file >> orange_upgrade;
+        open_file.close();
+        
         Rectangle btn_to_win = { GetScreenWidth() / 2 - 90, 120, 180, 100 };
         Rectangle btn_banana_upgrade = { 100, 425, 190, 80};
         Rectangle btn_orange_upgrade = { 520, 425, 190, 80};
@@ -67,6 +81,8 @@ int main () {
 
         gamestate gameState = GAME_STATE_MENU;
 
+        std::cout << "Angelika only" << std::endl;
+
         while (!WindowShouldClose()) {
                 UpdateMusicStream(music);
                 mousePoint = GetMousePosition();
@@ -90,15 +106,14 @@ int main () {
                         orange_upgrade = true;
                         bananas -= 400;
                 }
+                BeginDrawing();
                 switch (gameState) {
                         case GAME_STATE_MENU:
                                 ClearBackground(RAYWHITE);
-                                BeginDrawing();
                                 DrawText(TextFormat("FPS: %d", GetFPS()), 10, 10, 8, GREEN);
                                 DrawText("FarmaCraft", GetScreenWidth() / 2 - MeasureText("FarmaCraft", 20) / 2, 280, 20, BLACK);
                                 DrawText("Nacisnij Enter aby zaczac", GetScreenWidth() / 2 - MeasureText("Nacisnij Enter aby zaczac", 20) / 2, 310, 20, BLACK);
                                 DrawText("Nacisnij F2 aby zobaczyc tworcow", GetScreenWidth() / 2 - MeasureText("Nacisnij F2 aby zobaczyc tworcow", 20) / 2, 340, 20, BLACK);
-                                EndDrawing();
                                 if (IsKeyPressed(KEY_ENTER)) {
                                         gameState = GAME_STATE_GAME;
                                 }
@@ -108,7 +123,6 @@ int main () {
                                 break;
                         case GAME_STATE_CREDIT:
                                 ClearBackground(RAYWHITE);
-                                BeginDrawing();
                                 DrawText(TextFormat("FPS: %d", GetFPS()), 10, 10, 8, GREEN);
                                 DrawText("Tworcy: ", 10, 40, 20, BLACK);
                                 for (int i = 0; i < developers.size(); i++) {
@@ -123,14 +137,12 @@ int main () {
                                         DrawText(music_dev[i].c_str(), 550, 70 + i * 30, 20, BLACK);
                                 }
                                 DrawText("Nacisnij Enter aby wrocic do menu", 10, 370, 20, BLACK);
-                                EndDrawing();
                                 if (IsKeyPressed(KEY_ENTER)) {
                                         gameState = GAME_STATE_MENU;
                                 }
                                 break;
                         case GAME_STATE_GAME:
                                 ClearBackground(RAYWHITE);
-                                BeginDrawing();
                                 DrawText(TextFormat("FPS: %d", GetFPS()), 10, 10, 8, GREEN);
                                 DrawText(TextFormat("Apples: %d", apples), 10, 40, 20, BLACK);
                                 DrawText("Nacisnij B aby wejsc do sklepu", 420, 30, 20, BLACK);
@@ -147,7 +159,6 @@ int main () {
                                         DrawTexture(orangeTree, 580, 135, WHITE);
                                 }
                                 
-                                EndDrawing();
                                 if (IsKeyPressed(KEY_B)) {
                                         gameState = GAME_STATE_SHOP;
                                 }
@@ -158,7 +169,6 @@ int main () {
                                 break;
                         case GAME_STATE_SHOP:
                                 ClearBackground(RAYWHITE);
-                                BeginDrawing();
                                 DrawText(TextFormat("FPS: %d", GetFPS()), 10, 10, 8, GREEN);
                                 DrawText(TextFormat("Apples: %d", apples), 10, 40, 20, BLACK);
                                 if (banana_upgrade) {
@@ -169,17 +179,19 @@ int main () {
                                 }
                                 DrawText("Sklep", GetScreenWidth() / 2 - MeasureText("Sklep", 20) / 2, 100, 20, BLACK);
                                 if (!banana_upgrade) {
-                                        DrawRectangleRec(btn_banana_upgrade, YELLOW);
+                                        DrawRectangleRec(btn_banana_upgrade, RAYWHITE);
+                                        DrawTexture(banana_upgrade_texture, 100, 425, WHITE);
                                         DrawText("250 apples to open banana tree", 20, 400, 20, BLACK);
                                 }
                                 if (!orange_upgrade) {
-                                        DrawRectangleRec(btn_orange_upgrade, ORANGE);
+                                        DrawRectangleRec(btn_orange_upgrade, RAYWHITE);
+                                        DrawTexture(orange_upgrade_texture, 520, 425, WHITE);
                                         DrawText("400 bananas to open orange tree", 430, 400, 20, BLACK);
                                 }
-                                DrawRectangleRec(btn_to_win, RED);
+                                DrawRectangleRec(btn_to_win, RAYWHITE);
+                                DrawTexture(win, GetScreenWidth() / 2 - 90, 120, WHITE);
                                 DrawText("1000 apples, 1000 bananas, 1000 oranges aby wygrac", GetScreenWidth() / 2 - MeasureText("1000 apples, 1000 bananas, 1000 oranges aby wygrac", 20) / 2, 240, 20, BLACK);
                                 DrawText("Nacisnij B aby wrocic do gry", GetScreenWidth() / 2 - MeasureText("Nacisnij B aby wrocic do gry", 20) / 2, 310, 20, BLACK);
-                                EndDrawing();
                                 if (IsKeyPressed(KEY_B)) {
                                         gameState = GAME_STATE_GAME;
                                 }
@@ -192,7 +204,6 @@ int main () {
                                 break;
                         case GAME_STATE_STATS:
                                 ClearBackground(RAYWHITE);
-                                BeginDrawing();
                                 DrawText(TextFormat("FPS: %d", GetFPS()), 10, 10, 8, GREEN);
                                 DrawText("Statystyki", GetScreenWidth() / 2 - MeasureText("Statystyki", 20) / 2, 280, 20, BLACK);
                                 DrawText("Nacisnij S aby wrocic do gry", GetScreenWidth() / 2 - MeasureText("Nacisnij S aby wrocic do gry", 20) / 2, 310, 20, BLACK);
@@ -200,18 +211,15 @@ int main () {
                                 DrawText(TextFormat("Clicks: %d", clicks), 10, 70, 20, BLACK);
                                 DrawText(TextFormat("Bananas: %d", bananas), 300, 40, 20, BLACK);
                                 DrawText(TextFormat("Oranges: %d", oranges), 600, 40, 20, BLACK);
-                                EndDrawing();
                                 if (IsKeyPressed(KEY_S)) {
                                         gameState = GAME_STATE_GAME;
                                 }
                                 break;
                         case GAME_STATE_WIN:
                                 ClearBackground(GREEN);
-                                BeginDrawing();
                                 DrawText(TextFormat("FPS: %d", GetFPS()), 10, 10, 8, GREEN);
                                 DrawText("Wygrales!", GetScreenWidth() / 2 - MeasureText("Wygrales!", 20) / 2, 280, 20, BLACK);
                                 DrawText("Nacisnij Enter aby wrocic do menu", GetScreenWidth() / 2 - MeasureText("Nacisnij Enter aby wrocic do menu", 20) / 2, 310, 20, BLACK);
-                                EndDrawing();
                                 if (IsKeyPressed(KEY_ENTER)) {
                                         gameState = GAME_STATE_MENU;
                                 }
@@ -220,20 +228,28 @@ int main () {
                                 gameState = GAME_STATE_MENU;
                                 break;
                 }
+                EndDrawing();
         }
         
-        std::fstream save_file("saves/save.json");
-        save_file << "{\"apples\": " << apples << ",\n";
-        save_file << "{\"bananas\": " << bananas << ",\n";
-        save_file << "{\"oranges\": " << oranges << ",\n";
-        save_file << "\"clicks\": " << clicks << "}";
+        std::fstream save_file("saves/save.txt");
+        save_file << apples << "\n";
+        save_file << bananas << "\n";
+        save_file << oranges << "\n";
+        save_file << clicks << "\n";
+        save_file << banana_upgrade << "\n";
+        save_file << orange_upgrade << "\n";
         save_file.close();
         UnloadSound(click);
         UnloadMusicStream(music);
         CloseAudioDevice();
+        // trees
         UnloadTexture(appleTree);
         UnloadTexture(bananaTree);
         UnloadTexture(orangeTree);
+        // buttons
+        UnloadTexture(win);
+        UnloadTexture(banana_upgrade_texture);
+        UnloadTexture(orange_upgrade_texture);
         CloseWindow();
         return 0;
 }
