@@ -5,10 +5,105 @@
 #include <fstream>
 #include <algorithm>
 
+enum gamestate {
+        GAME_STATE_MENU,
+        GAME_STATE_CREDIT,
+        GAME_STATE_STATS,
+        GAME_STATE_SHOP,
+        GAME_STATE_GAME,
+        GAME_STATE_GAME_LVL2,
+        GAME_STATE_WIN
+};
+
+struct gamecontext {
+        gamestate gameState = GAME_STATE_MENU;
+        gamestate previousState = GAME_STATE_MENU;
+
+        bool sfx_muted = false;
+        float volume = 0.5f;
+        float sfx_volume = 1.0f;
+
+        Rectangle btn_sfx = { 115, 10, 20, 20 };
+
+       std::vector<std::string> developers = {
+                "MaruDE",
+                "Mati FL Studio"
+        };
+
+        std::vector<std::string> testers = {
+                "Kaffe",
+                "Avmia",
+                "Adanoo",
+                "Malutki",
+                "Mati FL Studio",
+                "Gluilb",
+                "666CENSORED999",
+                "TouchPad",
+                "Cygan",
+                "Atomic",
+                "Luca$$h",
+                "Kozlowska",
+                "Ukrop",
+                "Maslowww"
+        };
+
+        std::vector<std::string> music_dev = {
+                "Mati FL Studio"
+        };
+};
+
 struct cps {
         float cpsTimer = 0.0f;
         int clicksThisSecond = 0;
         float currentCPS = 0.0f;
+};
+
+struct gameAssets {
+        // MUSIC
+        Music music;
+        Sound click;
+        // SFX
+        Texture2D sfx_button;
+        Texture2D sfx_button_muted;
+        // 1LVL
+        Texture2D appleTree;
+        Texture2D bananaTree;
+        Texture2D orangeTree;
+        Texture2D win;
+        Texture2D banana_upgrade_texture;
+        Texture2D orange_upgrade_texture;
+        // 2LVL
+        Texture2D rock;
+        Texture2D coal_mine;
+        Texture2D iron_mine;
+        Texture2D coal_upgrade_texture;
+        Texture2D iron_upgrade_texture;
+};
+
+struct shopUI {
+        Rectangle btn_to_win = { (float)GetScreenWidth() / 2 - 90, 120, 180, 100 };
+        Rectangle btn_banana_upgrade = { 100, 425, 190, 80 };
+        Rectangle btn_orange_upgrade = { 520, 425, 190, 80 };
+
+        Rectangle btn_to_win_rock = { (float)GetScreenWidth() / 2 - 90, 120, 180, 100 };
+        Rectangle btn_coal_upgrade = { 100, 425, 190, 80 };
+        Rectangle btn_iron_upgrade = { 520, 425, 190, 80 };
+};
+
+struct shopItem {
+        int price;
+        int price_supporting;
+        int price_supporting_another;
+        enum type {
+                ITEM_BANANA,
+                ITEM_ORANGE,
+                ITEM_COAL,
+                ITEM_IRON, 
+                ITEM_WIN_TREE,
+                ITEM_WIN_ROCK
+        };
+        type type;
+        bool upgradeStatus;
 };
 
 struct PlayerData {
@@ -68,103 +163,154 @@ PlayerData loadGame() {
         return data;
 }
 
-int main () {
-        InitWindow(800, 600, "FarmaCraft");
-        SetTargetFPS(144);
+bool processPurchase(PlayerData &data, Rectangle btn, shopItem &item, Vector2 mousePoint, gamecontext &context) {
+        if (CheckCollisionPointRec(mousePoint, btn)) {
+                if (IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) {
+                        switch (item.type) {
+                                case shopItem::ITEM_BANANA:
+                                        if (data.apples >= item.price) {
+                                                data.banana_upgrade = true;
+                                                data.apples -= item.price;
+                                                return true;
+                                        }
+                                        break;
+                                case shopItem::ITEM_ORANGE:
+                                        if (data.bananas >= item.price) {
+                                                data.orange_upgrade = true;
+                                                data.bananas -= item.price;
+                                                return true;
+                                        }
+                                        break;
+                                case shopItem::ITEM_COAL:
+                                        if (data.rocks >= item.price) {
+                                                data.coal_upgrade = true;
+                                                data.rocks -= item.price;
+                                                return true;
+                                        }
+                                        break;
+                                case shopItem::ITEM_IRON:
+                                        if (data.coal >= item.price) {
+                                                data.iron_upgrade = true;
+                                                data.coal -= item.price;
+                                                return true;
+                                        }
+                                        break;
+                                case shopItem::ITEM_WIN_TREE:
+                                        if (data.apples >= item.price && data.bananas >= item.price_supporting && data.oranges >= item.price_supporting_another) {
+                                                data.tree_level_win = true;
+                                                data.apples -= item.price;
+                                                data.bananas -= item.price_supporting;
+                                                data.oranges -= item.price_supporting_another;
+                                                context.gameState = GAME_STATE_WIN;
+                                                return true;
+                                        }
+                                        break;
+                                case shopItem::ITEM_WIN_ROCK:
+                                        if (data.rocks >= item.price && data.coal >= item.price_supporting && data.iron >= item.price_supporting_another) {
+                                                data.rocks_level_win = true;
+                                                data.rocks -= item.price;
+                                                data.coal -= item.price_supporting;
+                                                data.iron -= item.price_supporting_another;
+                                                context.gameState = GAME_STATE_WIN;
+                                                return true;
+                                        }
+                                        break;
+                        }
+                }
+        }
+        return false;
+}
 
-        InitAudioDevice();
-
-        Music music = LoadMusicStream("includes/aud/King Has Returned.mp3");
-        Sound click = LoadSound("includes/sf/click.mp3");
-        PlayMusicStream(music);
-
-        Texture2D sfx_button = LoadTexture("includes/sf/click_sound_remove.png");
-        Texture2D sfx_button_muted = LoadTexture("includes/sf/click_sound_remove_muted.png");
-        bool sfx_muted = false;
-
-        float volume = 0.5f;
-        SetMusicVolume(music, volume);
-
-        float sfx_volume = 1.0f;
-        SetSoundVolume(click, sfx_volume);
-
-        // tree level
-        Texture2D appleTree = LoadTexture("includes/tetures/appletree.png");
-        Texture2D bananaTree = LoadTexture("includes/tetures/bananatree.png");
-        Texture2D orangeTree = LoadTexture("includes/tetures/orangetree.png");
-
-        Texture2D win = LoadTexture("includes/tetures/win_button.png");
-        Texture2D banana_upgrade_texture = LoadTexture("includes/tetures/banana_button.png");
-        Texture2D orange_upgrade_texture = LoadTexture("includes/tetures/orange_button.png");
-
-        //rock level
-        Texture2D rock = LoadTexture("includes/tetures/rock.png");
-        Texture2D coal_mine = LoadTexture("includes/tetures/coal_mine.png");
-        Texture2D iron_mine = LoadTexture("includes/tetures/iron_mine.png");
-
-        Texture2D coal_upgrade_texture = LoadTexture("includes/tetures/coal_button.png");
-        Texture2D iron_upgrade_texture = LoadTexture("includes/tetures/iron_button.png");
-
-        Vector2 mousePoint = { 0.0f, 0.0f };
-
-        PlayerData data;
-
-        data = loadGame();
-
-        cps cps;
-
-        Rectangle btn_sfx = { 115, 10, 20, 20 };
-
-        Rectangle btn_to_win = { GetScreenWidth() / 2 - 90, 120, 180, 100 };
-        Rectangle btn_banana_upgrade = { 100, 425, 190, 80};
-        Rectangle btn_orange_upgrade = { 520, 425, 190, 80};
-
-        Rectangle btn_to_win_rock = { GetScreenWidth() / 2 - 90, 120, 180, 100};
-        Rectangle btn_coal_upgrade = { 100, 425, 190, 80};
-        Rectangle btn_iron_upgrade = { 520, 425, 190, 80};
+void updateShop (PlayerData &data, gamecontext &context, const shopUI &shop_ui, Vector2 mousePoint) {
+        shopItem item;
+        item.type = shopItem::ITEM_BANANA;
+        item.price = 250;
+        item.price_supporting = 0;
+        item.price_supporting_another = 0;
+       if (processPurchase(data, shop_ui.btn_banana_upgrade, item, mousePoint, context)) {
         
-        enum gamestate {
-                GAME_STATE_MENU,
-                GAME_STATE_CREDIT,
-                GAME_STATE_STATS,
-                GAME_STATE_SHOP,
-                GAME_STATE_GAME,
-                GAME_STATE_GAME_LVL2,
-                GAME_STATE_WIN
-        };
+       }
+       item.type = shopItem::ITEM_ORANGE;
+       item.price = 400;
+       item.price_supporting = 0;
+       if (processPurchase(data, shop_ui.btn_orange_upgrade, item, mousePoint, context)) {
+        
+       }
+       item.type = shopItem::ITEM_COAL;
+       item.price = 2000;
+       item.price_supporting = 0;
+       if (processPurchase(data, shop_ui.btn_coal_upgrade, item, mousePoint, context)) {
+        
+       }
+       item.type = shopItem::ITEM_IRON;
+       item.price = 6000;
+       item.price_supporting = 0;
+       if (processPurchase(data, shop_ui.btn_iron_upgrade, item, mousePoint, context)) {
+        
+       }
+       item.type = shopItem::ITEM_WIN_TREE;
+       item.price = 1000;
+       item.price_supporting = 1000;
+       item.price_supporting_another = 1000;
+       if (processPurchase(data, shop_ui.btn_to_win, item, mousePoint, context)) {
+        
+       }
+       item.type = shopItem::ITEM_WIN_ROCK;
+       item.price = 15000;
+       item.price_supporting = 12000;
+       item.price_supporting_another = 10000;
+       if (processPurchase(data, shop_ui.btn_to_win_rock, item, mousePoint, context)) {
+        
+       }
+}
 
-        std::vector<std::string> developers = {
-                "MaruDE",
-                "Mati FL Studio"
-        };
 
-        std::vector<std::string> testers = {
-                "Kaffe",
-                "Avmia",
-                "Adanoo",
-                "Malutki",
-                "Mati FL Studio",
-                "Gluilb",
-                "666CENSORED999",
-                "TouchPad",
-                "Cygan",
-                "Atomic",
-                "Luca$$h",
-                "Kozlowska"
-        };
 
-        std::vector<std::string> music_dev = {
-                "Mati FL Studio"
-        };
+void loadAssets (gameAssets &assets) {
+        assets.music = LoadMusicStream("includes/aud/King Has Returned.mp3");
+        assets.click = LoadSound("includes/sf/click.mp3");
+        assets.sfx_button = LoadTexture("includes/sf/click_sound_remove.png");
+        assets.sfx_button_muted = LoadTexture("includes/sf/click_sound_remove_muted.png");
+        assets.appleTree = LoadTexture("includes/tetures/appletree.png");
+        assets.bananaTree = LoadTexture("includes/tetures/bananatree.png");
+        assets.orangeTree = LoadTexture("includes/tetures/orangetree.png");
+        assets.win = LoadTexture("includes/tetures/win_button.png");
+        assets.banana_upgrade_texture = LoadTexture("includes/tetures/banana_button.png");
+        assets.orange_upgrade_texture = LoadTexture("includes/tetures/orange_button.png");
+        assets.rock = LoadTexture("includes/tetures/rock.png");
+        assets.coal_mine = LoadTexture("includes/tetures/coal_mine.png");
+        assets.iron_mine = LoadTexture("includes/tetures/iron_mine.png");
+        assets.coal_upgrade_texture = LoadTexture("includes/tetures/coal_button.png");
+        assets.iron_upgrade_texture = LoadTexture("includes/tetures/iron_button.png");
+}
 
-        std::cout << "#LoveAngelika" << std::endl;
+void unloadAssets (gameAssets &assets) {
+        UnloadSound(assets.click);
+        UnloadMusicStream(assets.music);
+        CloseAudioDevice();
 
-        gamestate gameState = GAME_STATE_MENU;
-        gamestate previousState = GAME_STATE_MENU;
+        UnloadTexture(assets.sfx_button);
+        UnloadTexture(assets.sfx_button_muted);
+        // trees
+        UnloadTexture(assets.appleTree);
+        UnloadTexture(assets.bananaTree);
+        UnloadTexture(assets.orangeTree);
+        // buttons
+        UnloadTexture(assets.win);
+        UnloadTexture(assets.banana_upgrade_texture);
+        UnloadTexture(assets.orange_upgrade_texture);
+        // rocks
+        UnloadTexture(assets.rock);
+        UnloadTexture(assets.coal_mine);
+        UnloadTexture(assets.iron_mine);
+        // rock_but
+        UnloadTexture(assets.coal_upgrade_texture);
+        UnloadTexture(assets.iron_upgrade_texture);
+}
 
-        while (!WindowShouldClose()) {
-                // LOGIC BLOCK
-                UpdateMusicStream(music);
+void updateGame (gamecontext &context, gameAssets &assets, PlayerData &data, cps &cps, shopUI &shop_ui, Vector2 mousePoint) {
+         // LOGIC BLOCK
+                UpdateMusicStream(assets.music);
                 mousePoint = GetMousePosition();
                 cps.cpsTimer += GetFrameTime();
                 if (cps.cpsTimer >= 1.0f) {
@@ -173,18 +319,20 @@ int main () {
                         cps.cpsTimer = 0.0f;
                 }
                 
-                switch (gameState) {
+                switch (context.gameState) {
                         case GAME_STATE_MENU:
                                 if (IsKeyPressed(KEY_ENTER)) {
-                                        gameState = GAME_STATE_GAME;
+                                        context.previousState = context.gameState;
+                                        context.gameState = GAME_STATE_GAME;
                                 }
                                 if (data.tree_level_win) {
                                         if (IsKeyPressed(KEY_F3)) {
-                                                gameState = GAME_STATE_GAME_LVL2;
+                                                context.previousState = context.gameState;
+                                                context.gameState = GAME_STATE_GAME_LVL2;
                                         }
                                 }
                                 if (IsKeyPressed(KEY_F2)) {
-                                        gameState = GAME_STATE_CREDIT;
+                                        context.gameState = GAME_STATE_CREDIT;
                                 }
                                 break;
                         case GAME_STATE_GAME:
@@ -192,150 +340,119 @@ int main () {
                                         data.apples++;
                                         data.clicks++;
                                         cps.clicksThisSecond++;
-                                        PlaySound(click);
+                                        PlaySound(assets.click);
                                 }
-                        if (data.banana_upgrade && IsMouseButtonPressed(MOUSE_LEFT_BUTTON) || data.banana_upgrade && IsMouseButtonPressed(MOUSE_RIGHT_BUTTON)) {
-                                data.bananas++;
-                        }
-                        if (data.orange_upgrade && IsMouseButtonPressed(MOUSE_LEFT_BUTTON) || data.orange_upgrade && IsMouseButtonPressed(MOUSE_RIGHT_BUTTON)) {
-                                data.oranges++;
-                        }
-                        if (IsKeyPressed(KEY_SPACE)) {
-                                gameState = GAME_STATE_MENU;
-                        }
-                        if (IsKeyPressed(KEY_B)) {
-                                previousState = GAME_STATE_GAME;
-                                gameState = GAME_STATE_SHOP;
-                        }
-                        if (IsKeyPressed(KEY_S)) {
-                                previousState = GAME_STATE_GAME;
-                                gameState = GAME_STATE_STATS;
-                        }
+                                if (data.banana_upgrade && (IsMouseButtonPressed(MOUSE_LEFT_BUTTON) || IsMouseButtonPressed(MOUSE_RIGHT_BUTTON))) {
+                                        data.bananas++;
+                                }
+                                if (data.orange_upgrade && (IsMouseButtonPressed(MOUSE_LEFT_BUTTON) || IsMouseButtonPressed(MOUSE_RIGHT_BUTTON))) {
+                                        data.oranges++;
+                                }
+                                if (IsKeyPressed(KEY_SPACE)) {
+                                        context.gameState = GAME_STATE_MENU;
+                                }
+                                if (IsKeyPressed(KEY_B)) {
+                                        context.previousState = context.gameState;
+                                        context.gameState = GAME_STATE_SHOP;
+                                }
+                                if (IsKeyPressed(KEY_S)) {
+                                        context.previousState = context.gameState;
+                                        context.gameState = GAME_STATE_STATS;
+                                }
                         break;
                         case GAME_STATE_CREDIT:
                                 if (IsKeyPressed(KEY_ENTER)) {
-                                        gameState = GAME_STATE_MENU;
+                                        context.gameState = GAME_STATE_MENU;
                                 }
                                 break;
                         case GAME_STATE_GAME_LVL2:
-                        if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON) || IsMouseButtonPressed(MOUSE_RIGHT_BUTTON)) {
-                                data.rocks++;
-                                data.clicks++;
-                                cps.clicksThisSecond++;
-                                PlaySound(click);
-                        }
-                        if (data.coal_upgrade && IsMouseButtonPressed(MOUSE_LEFT_BUTTON) || data.coal_upgrade && IsMouseButtonPressed(MOUSE_RIGHT_BUTTON)) {
-                                data.coal++;
-                        }
-                        if (data.iron_upgrade && IsMouseButtonPressed(MOUSE_LEFT_BUTTON) || data.iron_upgrade && IsMouseButtonPressed(MOUSE_RIGHT_BUTTON)) {
-                                data.iron++;
-                        }
-                        if (IsKeyPressed(KEY_B)) {
-                                previousState = GAME_STATE_GAME_LVL2;
-                                gameState = GAME_STATE_SHOP;
-                        }
-                        if (IsKeyPressed(KEY_S)) {
-                                previousState = GAME_STATE_GAME_LVL2;
-                                gameState = GAME_STATE_STATS;
-                        }
-                        if (IsKeyPressed(KEY_SPACE)) {
-                                gameState = GAME_STATE_MENU;
-                        }
-                        break;
-                        case GAME_STATE_SHOP:
-                                if (previousState == GAME_STATE_GAME) {
-                                        if (IsMouseButtonReleased(MOUSE_LEFT_BUTTON) && CheckCollisionPointRec(mousePoint, btn_banana_upgrade) && !data.banana_upgrade && data.apples >= 250) {
-                                                data.banana_upgrade = true;
-                                                data.apples -= 250;
-                                        }
-                                        if (IsMouseButtonReleased(MOUSE_LEFT_BUTTON) && CheckCollisionPointRec(mousePoint, btn_orange_upgrade) && !data.orange_upgrade && data.bananas >= 400) {
-                                                data.orange_upgrade = true;
-                                                data.bananas -= 400;
-                                        }
-                                        if (CheckCollisionPointRec(mousePoint, btn_to_win)) {
-                                                if (IsMouseButtonReleased(MOUSE_LEFT_BUTTON) && data.apples >= 1000 && data.bananas >= 1000 && data.oranges >= 1000) {
-                                                        data.tree_level_win = true;
-                                                        data.apples -= 1000;
-                                                        data.bananas -= 1000;
-                                                        data.oranges -= 1000;
-                                                        gameState = GAME_STATE_WIN;
-                                                }
-                                        }
-                                } else if (previousState == GAME_STATE_GAME_LVL2) {
-                                        if (IsMouseButtonReleased(MOUSE_LEFT_BUTTON) && CheckCollisionPointRec(mousePoint, btn_coal_upgrade) && !data.coal_upgrade && data.rocks >= 250) {
-                                        data.coal_upgrade = true;
-                                        data.rocks -= 2000;
-                                        }
-                                        if (IsMouseButtonReleased(MOUSE_LEFT_BUTTON) && CheckCollisionPointRec(mousePoint, btn_iron_upgrade) && !data.iron_upgrade && data.coal >= 400) {
-                                                data.iron_upgrade = true;
-                                                data.coal -= 6000;
-                                        }
-                                        if (CheckCollisionPointRec(mousePoint, btn_to_win_rock)) {
-                                                if (IsMouseButtonReleased(MOUSE_LEFT_BUTTON) && data.rocks >= 15000 && data.coal >= 12000 && data.iron >= 10000) {
-                                                        data.rocks_level_win = true;
-                                                        data.rocks -= 15000;
-                                                        data.coal -= 12000;
-                                                        data.iron -= 10000;
-                                                        gameState = GAME_STATE_WIN;
-                                                }
-                                        }         
+                                if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON) || IsMouseButtonPressed(MOUSE_RIGHT_BUTTON)) {
+                                        data.rocks++;
+                                        data.clicks++;
+                                        cps.clicksThisSecond++;
+                                        PlaySound(assets.click);
+                                }
+                                if (data.coal_upgrade && (IsMouseButtonPressed(MOUSE_LEFT_BUTTON) || IsMouseButtonPressed(MOUSE_RIGHT_BUTTON))) {
+                                        data.coal++;
+                                }
+                                if (data.iron_upgrade && (IsMouseButtonPressed(MOUSE_LEFT_BUTTON) || IsMouseButtonPressed(MOUSE_RIGHT_BUTTON))) {
+                                        data.iron++;
                                 }
                                 if (IsKeyPressed(KEY_B)) {
-                                        gameState = previousState;
+                                        context.previousState = GAME_STATE_GAME_LVL2;
+                                        context.gameState = GAME_STATE_SHOP;
+                                }
+                                if (IsKeyPressed(KEY_S)) {
+                                        context.previousState = GAME_STATE_GAME_LVL2;
+                                        context.gameState = GAME_STATE_STATS;
+                                }
+                                if (IsKeyPressed(KEY_SPACE)) {
+                                        context.gameState = GAME_STATE_MENU;
+                                }
+                        break;
+                        case GAME_STATE_SHOP:
+                                if (context.previousState == GAME_STATE_GAME) {
+                                        updateShop(data, context, shop_ui, mousePoint);
+                                } else if (context.previousState == GAME_STATE_GAME_LVL2) {
+                                        updateShop(data, context, shop_ui, mousePoint);     
+                                }
+                                if (IsKeyPressed(KEY_B)) {
+                                        context.gameState = context.previousState;
                                 } 
                                 break;
                         case GAME_STATE_STATS:
                                 if (IsKeyPressed(KEY_S)) {
-                                        gameState = previousState;
+                                        context.gameState = context.previousState;
                                 }
                                 break;
                         case GAME_STATE_WIN:
                                 if (IsKeyPressed(KEY_ENTER)) {
-                                        gameState = GAME_STATE_MENU;
+                                        context.gameState = GAME_STATE_MENU;
                                 }
                                 break;
                         default: 
-                                gameState = GAME_STATE_GAME;
+                                context.gameState = GAME_STATE_GAME;
                                 break;
                 }
                 
-                if (CheckCollisionPointRec(mousePoint, btn_sfx)) {
+                if (CheckCollisionPointRec(mousePoint, context.btn_sfx)) {
                         if (IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) {
-                                sfx_muted = !sfx_muted;
-                                if (sfx_muted) {
-                                        sfx_volume = 0.0f;
+                                context.sfx_muted = !context.sfx_muted;
+                                if (context.sfx_muted) {
+                                        context.sfx_volume = 0.0f;
                                 } else {
-                                        sfx_volume = 1.0f;
+                                        context.sfx_volume = 1.0f;
                                 }
-                                SetSoundVolume(click, sfx_volume);
+                                SetSoundVolume(assets.click, context.sfx_volume);
                         }
                 }
 
                 if (IsKeyDown(KEY_UP)) {
-                        volume += 0.01f;
-                        if (volume > 1.0f) volume = 1.0f; 
-                        SetMusicVolume(music, volume);
+                        context.volume += 0.01f;
+                        if (context.volume > 1.0f) context.volume = 1.0f; 
+                        SetMusicVolume(assets.music, context.volume);
                 } else if (IsKeyDown(KEY_DOWN)) {
-                        volume -= 0.01f;
-                        if (volume < 0.0f) volume = 0.0f;
-                        SetMusicVolume(music, volume);
+                        context.volume -= 0.01f;
+                        if (context.volume < 0.0f) context.volume = 0.0f;
+                        SetMusicVolume(assets.music, context.volume);
                 };
-                // -----------------------------------------------------------
-                // DRAWING BLOCK
+}
+
+void drawGame(gamecontext &context, gameAssets assets, PlayerData data, cps cps, shopUI &shop_ui) {
+         // DRAWING BLOCK
                 BeginDrawing();
 
                 DrawRectangle(140, 10, 100, 20, LIGHTGRAY);
                 DrawRectangleLines(140, 10, 100, 20, BLACK);
-                DrawRectangle((int)(140 + volume*100 - 5), 8, 10, 26, DARKGRAY);
+                DrawRectangle((int)(140 + context.volume * 100 - 5), 8, 10, 26, DARKGRAY);
                 DrawText("UP/DOWN dla glosnosci", 140, 40, 8, BLACK);
-                DrawRectangleRec(btn_sfx, RAYWHITE);
-                if (sfx_muted) {
-                        DrawTexture(sfx_button_muted, 115, 10, WHITE);
+                DrawRectangleRec(context.btn_sfx, RAYWHITE);
+                if (context.sfx_muted) {
+                        DrawTexture(assets.sfx_button_muted, 115, 10, WHITE);
                 } else {
-                        DrawTexture(sfx_button, 115, 10, WHITE);
+                        DrawTexture(assets.sfx_button, 115, 10, WHITE);
                 }
-
-                switch (gameState) {
+                switch (context.gameState) {
                         case GAME_STATE_MENU:
                                 ClearBackground(RAYWHITE);
                                 DrawText(TextFormat("FPS: %d", GetFPS()), 10, 10, 8, GREEN);
@@ -350,20 +467,18 @@ int main () {
                                 ClearBackground(RAYWHITE);
                                 DrawText(TextFormat("FPS: %d", GetFPS()), 10, 10, 8, GREEN);
                                 DrawText("Tworcy: ", 10, 40, 20, BLACK);
-                                for (int i = 0; i < developers.size(); i++) {
-                                        DrawText(developers[i].c_str(), 10, 70 + i * 30, 20, BLACK);
+                                for (size_t i = 0; i < context.developers.size(); i++) {
+                                        DrawText(context.developers[i].c_str(), 10, (int)(70 + i * 30), 20, BLACK);
                                 }
                                 DrawText("Testerowie: ", 300, 40, 20, BLACK);
-                                for (int i = 0; i < testers.size(); i++) {
-                                        if (testers[i] == "Mati FL Studio") {
-                                                DrawText(testers[i].c_str(), 300, 70 + i * 30, 20, YELLOW);
-                                        } else {
-                                                DrawText(testers[i].c_str(), 300, 70 + i * 30, 20, BLACK);
-                                        }
+                                for (size_t i = 0; i < context.testers.size(); i++) {
+                                        DrawText(context.testers[i].c_str(), 300, (int)(70 + i * 30), 20, BLACK);
                                 }
                                 DrawText("Muzyka: ", 550, 40, 20, BLACK);
-                                for (int i = 0; i < music_dev.size(); i++) {
-                                        DrawText(music_dev[i].c_str(), 550, 70 + i * 30, 20, BLACK);
+                                for (size_t i = 0; i < context.music_dev.size(); i++) {
+                                        if (context.music_dev[i] == "Mati FL Studio") {
+                                                DrawText(context.music_dev[i].c_str(), 550, (int)(70 + i * 30), 20, MAGENTA);
+                                        }
                                 }
                                 DrawText("Nacisnij Enter aby wrocic do menu", 10, 400, 20, BLACK);
                                 break;
@@ -374,36 +489,36 @@ int main () {
                                 DrawText(TextFormat("Apples: %d", data.apples), 10, 40, 20, BLACK);
                                 DrawText("Nacisnij B aby wejsc do sklepu", 420, 30, 20, BLACK);
                                 DrawText("Nacisnij S aby zobaczyc statystyki", 420, 60, 20, BLACK);
-                                DrawTexture(appleTree, 300, 135, WHITE);
+                                DrawTexture(assets.appleTree, 300, 135, WHITE);
                                 if (data.banana_upgrade && !data.orange_upgrade) { 
                                         DrawText(TextFormat("Bananas: %d", data.bananas), 10, 70, 20, BLACK);
-                                        DrawTexture(bananaTree, 10, 135, WHITE);
+                                        DrawTexture(assets.bananaTree, 10, 135, WHITE);
                                 }
                                 if (data.banana_upgrade && data.orange_upgrade) {
                                         DrawText(TextFormat("Bananas: %d", data.bananas), 10, 70, 20, BLACK);
                                         DrawText(TextFormat("Oranges: %d", data.oranges), 10, 100, 20, BLACK);
-                                        DrawTexture(bananaTree, 10, 135, WHITE);
-                                        DrawTexture(orangeTree, 580, 135, WHITE);
+                                        DrawTexture(assets.bananaTree, 10, 135, WHITE);
+                                        DrawTexture(assets.orangeTree, 580, 135, WHITE);
                                 }
                                 DrawText("Nacisnij Space aby wrocic do menu", 420, 10, 10, BLACK);     
                                 break;
                         case GAME_STATE_GAME_LVL2:
                                 ClearBackground(RAYWHITE);
                                 DrawText(TextFormat("FPS: %d", GetFPS()), 10, 10, 8, GREEN);
-                                DrawText(TextFormat("CPS: %.1f", cps.currentCPS), GetScreenWidth() / 2 - MeasureText(TextFormat("CPS: %.1f", cps.currentCPS), 20) / 2 - 60, 40, 20, BLACK);     
+                                DrawText(TextFormat("CPS: %.1f", cps.currentCPS), GetScreenWidth() / 2 - MeasureText(TextFormat("CPS: %.1f", cps.currentCPS), 20) / 2 - 90, 40, 20, BLACK);     
                                 DrawText(TextFormat("Rocks: %d", data.rocks), 10, 40, 20, BLACK);
                                 DrawText("Nacisnij B aby wejsc do sklepu", 420, 30, 20, BLACK);
                                 DrawText("Nacisnij S aby zobaczyc statystyki", 420, 60, 20, BLACK);
-                                DrawTexture(rock, 270, 135, WHITE);
+                                DrawTexture(assets.rock, 270, 135, WHITE);
                                 if (data.coal_upgrade && !data.iron_upgrade) { 
                                         DrawText(TextFormat("Coal: %d", data.coal), 10, 70, 20, BLACK);
-                                        DrawTexture(coal_mine, 10, 135, WHITE);
+                                        DrawTexture(assets.coal_mine, 10, 135, WHITE);
                                 }
                                 if (data.coal_upgrade && data.iron_upgrade) {
                                         DrawText(TextFormat("Coal: %d", data.coal), 10, 70, 20, BLACK);
                                         DrawText(TextFormat("Iron: %d", data.iron), 10, 100, 20, BLACK);
-                                        DrawTexture(coal_mine, 10, 215, WHITE);
-                                        DrawTexture(iron_mine, 550, 215, WHITE);
+                                        DrawTexture(assets.coal_mine, 10, 215, WHITE);
+                                        DrawTexture(assets.iron_mine, 550, 215, WHITE);
                                 }
                                 DrawText("Nacisnij Space aby wrocic do menu", 420, 10, 10, BLACK);       
                                 break;
@@ -411,7 +526,7 @@ int main () {
                                 ClearBackground(RAYWHITE);
                                 DrawText(TextFormat("FPS: %d", GetFPS()), 10, 10, 8, GREEN);   
                                 DrawText("Sklep", GetScreenWidth() / 2 - MeasureText("Sklep", 20) / 2, 100, 20, BLACK);
-                                if (previousState == GAME_STATE_GAME) {
+                                if (context.previousState == GAME_STATE_GAME) {
                                         DrawText(TextFormat("Apples: %d", data.apples), 10, 40, 20, BLACK);
                                         if (data.banana_upgrade) {
                                                 DrawText(TextFormat("Bananas: %d", data.bananas), 10, 70, 20, BLACK);
@@ -421,34 +536,34 @@ int main () {
                                         }
                                         
                                         if (!data.banana_upgrade) {
-                                                DrawRectangleRec(btn_banana_upgrade, RAYWHITE);
-                                                DrawTexture(banana_upgrade_texture, 100, 425, WHITE);
+                                                DrawRectangleRec(shop_ui.btn_banana_upgrade, RAYWHITE);
+                                                DrawTexture(assets.banana_upgrade_texture, 100, 425, WHITE);
                                                 DrawText("250 apples to open banana tree", 20, 400, 20, BLACK);
                                         }
                                         if (!data.orange_upgrade) {
-                                                DrawRectangleRec(btn_orange_upgrade, RAYWHITE);
-                                                DrawTexture(orange_upgrade_texture, 520, 425, WHITE);
+                                                DrawRectangleRec(shop_ui.btn_orange_upgrade, RAYWHITE);
+                                                DrawTexture(assets.orange_upgrade_texture, 520, 425, WHITE);
                                                 DrawText("400 bananas to open orange tree", 430, 400, 20, BLACK);
                                         }
                                         if (!data.tree_level_win) {
-                                                DrawRectangleRec(btn_to_win, RAYWHITE);
-                                                DrawTexture(win, GetScreenWidth() / 2 - 90, 120, WHITE);
+                                                DrawRectangleRec(shop_ui.btn_to_win, RAYWHITE);
+                                                DrawTexture(assets.win, GetScreenWidth() / 2 - 90, 120, WHITE);
                                                 DrawText("1000 apples, 1000 bananas, 1000 oranges aby wygrac", GetScreenWidth() / 2 - MeasureText("1000 apples, 1000 bananas, 1000 oranges aby wygrac", 20) / 2, 240, 20, BLACK);
                                         }
                                         
                                 } 
-                                if (previousState == GAME_STATE_GAME_LVL2) {
-                                        DrawRectangleRec(btn_to_win_rock, RAYWHITE);
-                                        DrawTexture(win, GetScreenWidth() / 2 - 90, 120, WHITE);
+                                if (context.previousState == GAME_STATE_GAME_LVL2) {
+                                        DrawRectangleRec(shop_ui.btn_to_win_rock, RAYWHITE);
+                                        DrawTexture(assets.win, GetScreenWidth() / 2 - 90, 120, WHITE);
                                         DrawText("15000 rocks, 12000 coal, 10000 iron aby wygrac", GetScreenWidth() / 2 - MeasureText("1000 apples, 1000 bananas, 1000 oranges aby wygrac", 20) / 2, 240, 20, BLACK);
                                         if (!data.coal_upgrade) {
-                                                DrawRectangleRec(btn_coal_upgrade, RAYWHITE);
-                                                DrawTexture(coal_upgrade_texture, 100, 425, WHITE);
+                                                DrawRectangleRec(shop_ui.btn_coal_upgrade, RAYWHITE);
+                                                DrawTexture(assets.coal_upgrade_texture, 100, 425, WHITE);
                                                 DrawText("2000 rocks to open coal mine", 20, 400, 20, BLACK);
                                         }
                                         if (!data.iron_upgrade) {
-                                                DrawRectangleRec(btn_iron_upgrade, RAYWHITE);
-                                                DrawTexture(iron_upgrade_texture, 520, 425, WHITE);
+                                                DrawRectangleRec(shop_ui.btn_iron_upgrade, RAYWHITE);
+                                                DrawTexture(assets.iron_upgrade_texture, 520, 425, WHITE);
                                                 DrawText("6000 coal to open iron mine", 430, 400, 20, BLACK);
                                         }
                                 }
@@ -458,7 +573,7 @@ int main () {
                                 ClearBackground(RAYWHITE);
                                 DrawText(TextFormat("FPS: %d", GetFPS()), 10, 10, 8, GREEN);
                                 DrawText("Statystyki", GetScreenWidth() / 2 - MeasureText("Statystyki", 20) / 2, 280, 20, BLACK);
-                                DrawText("Nacisnij S aby wrocic do gry", GetScreenWidth() / 2 - MeasureText("Nacisnij S aby wrocic do gry", 20) / 2 - 60, 310, 20, BLACK);
+                                DrawText("Nacisnij S aby wrocic do gry", GetScreenWidth() / 2 - MeasureText("Nacisnij S aby wrocic do gry", 20) / 2, 310, 20, BLACK);
                                 DrawText(TextFormat("Apples: %d", data.apples), 10, 40, 20, BLACK);
                                 DrawText(TextFormat("Clicks: %d", data.clicks), 10, 70, 20, BLACK);
                                 DrawText(TextFormat("Bananas: %d", data.bananas), 300, 40, 20, BLACK);
@@ -480,38 +595,50 @@ int main () {
                                 DrawText("Nacisnij Enter aby wrocic do menu", GetScreenWidth() / 2 - MeasureText("Nacisnij Enter aby wrocic do menu", 20) / 2, 340, 20, BLACK);
                                 break;
                         default:
-                                gameState = GAME_STATE_MENU;
+                                context.gameState = GAME_STATE_MENU;
                                 break;
                 }
                 EndDrawing();
-                // --------------------------------------------------------------------------
+}
+
+// FarmaCraft 5.0v Cody Optimum Update Part 2
+int main () {
+        InitWindow(800, 600, "FarmaCraft");
+        SetTargetFPS(144);
+
+        InitAudioDevice();
+
+        gameAssets assets;
+        loadAssets(assets);
+        shopUI shop_ui;
+        gamecontext context;
+
+        PlayMusicStream(assets.music);
+
+        SetMusicVolume(assets.music, context.volume);
+
+        SetSoundVolume(assets.click, context.sfx_volume);
+
+        Vector2 mousePoint = { 0.0f, 0.0f };
+
+        PlayerData data;
+
+        data = loadGame();
+
+        cps cps;
+
+        std::cout << "#LoveAngelika" << std::endl;
+
+        while (!WindowShouldClose()) {
+                updateGame(context, assets, data, cps, shop_ui, mousePoint);
+
+                drawGame(context, assets, data, cps, shop_ui);
         }
 
-        // CLEAR BLOCK
-        
         data.saveGame();
       
-        UnloadSound(click);
-        UnloadMusicStream(music);
-        CloseAudioDevice();
+        unloadAssets(assets);
 
-        UnloadTexture(sfx_button);
-        UnloadTexture(sfx_button_muted);
-        // trees
-        UnloadTexture(appleTree);
-        UnloadTexture(bananaTree);
-        UnloadTexture(orangeTree);
-        // buttons
-        UnloadTexture(win);
-        UnloadTexture(banana_upgrade_texture);
-        UnloadTexture(orange_upgrade_texture);
-        // rocks
-        UnloadTexture(rock);
-        UnloadTexture(coal_mine);
-        UnloadTexture(iron_mine);
-        // rock_but
-        UnloadTexture(coal_upgrade_texture);
-        UnloadTexture(iron_upgrade_texture);
         CloseWindow();
         return 0;
 }
